@@ -1,0 +1,30 @@
+{
+  "name": "niceone-goldenscent-boutiqaat-scraper-api",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Unofficial Node.js & Python Client for NiceOne, GoldenScent & Boutiqaat Scraper (GCC Perfumes & Beauty Price API)",
+  "scripts": {
+    "start": "node example.js",
+    "webhook": "node templates/salla-price-alert-webhook.js"
+  },
+  "keywords": [
+    "niceone",
+    "goldenscent",
+    "boutiqaat",
+    "perfumes-scraper",
+    "gcc-beauty",
+    "oud-prices",
+    "salla",
+    "zid",
+    "shopify-gcc",
+    "apify"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "apify-client": "^2.10.0"
+  },
+  "devDependencies": {
+    "express": "^4.21.2"
+  }
+}

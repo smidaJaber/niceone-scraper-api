@@ -1,0 +1,298 @@
+{
+  "name": "Salla & GCC Perfumes Price Drop & Flash Sale Intelligence Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "apify-gcc-perfume-webhook",
+        "options": {}
+      },
+      "id": "1e72392b-8a41-4541-9a72-7a13d78c0001",
+      "name": "Apify Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "apify-gcc-perfume-webhook"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "1e72392b-8a41-4541-9a72-7a13d78c0002",
+      "name": "Daily 9:00 AM Cron (Riyadh Time)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 500]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.apify.com/v2/actor-tasks/{{ $json.actorTaskId || 'YOUR_ACTOR_TASK_ID' }}/runs",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.APIFY_TOKEN || 'YOUR_APIFY_TOKEN' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1e72392b-8a41-4541-9a72-7a13d78c0003",
+      "name": "Trigger Apify GCC Scraper Run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.apify.com/v2/datasets/{{ $json.body?.resource?.defaultDatasetId || $json.resource?.defaultDatasetId || $json.data?.defaultDatasetId || $json.defaultDatasetId }}/items?clean=true&format=json",
+        "method": "GET",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.APIFY_TOKEN || 'YOUR_APIFY_TOKEN' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1e72392b-8a41-4541-9a72-7a13d78c0004",
+      "name": "Fetch Scraped Perfume Dataset",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter for Price Drops, Flash Sales, or High-Discount items\nconst items = $input.all();\nconst alerts = [];\n\nfor (const entry of items) {\n  const p = entry.json;\n  const isPriceDrop = p.priceChangeStatus === 'PRICE_DROP';\n  const isFlash = Boolean(p.isFlashSale);\n  const hasLargeDiscount = (p.discountPct || 0) >= 20;\n  const isNew = p.priceChangeStatus === 'NEW';\n\n  if (isPriceDrop || isFlash || hasLargeDiscount) {\n    const prev = p.previousPrice || p.originalPrice || p.salePrice;\n    const diff = prev - p.salePrice;\n    const diffAmount = diff > 0 ? Number(diff.toFixed(2)) : 0;\n    const dropPct = prev > 0 && diff > 0 ? Math.round((diff / prev) * 100) : (p.discountPct || 0);\n\n    const alertType = isPriceDrop ? '🚨 هبوط سعر منافس (Price Drop)' : isFlash ? '⚡ فلاش سيل عاجل (Flash Sale)' : '🔥 خصم كبير (Heavy Discount)';\n\n    const messageAr = `🚨 *تنبيه أسعار العطور والتجميل — سلة (Salla)*\\n\\n` +\n      `📌 *النوع:* ${alertType}\\n` +\n      `🏬 *المتجر المنافس:* ${p.platform}\\n` +\n      `🏷️ *الماركة:* ${p.brand || 'غير محدد'}\\n` +\n      `📦 *اسم العطر:* ${p.title}\\n` +\n      `💰 *السعر الحالي:* ${p.salePrice} ${p.currency}\\n` +\n      (prev && diff > 0 ? `📉 *السعر السابق:* ${prev} ${p.currency} (انخفاض بمقدار ${diffAmount} ${p.currency} / -${dropPct}%)\\n` : '') +\n      (p.sizeVolume ? `🧴 *الحجم / التركيز:* ${p.sizeVolume} (${p.concentration || 'عطر'})\\n` : '') +\n      (p.pricePer100Ml ? `📊 *سعر الـ 100 مل:* ${p.pricePer100Ml} ${p.currency}\\n` : '') +\n      `✅ *التوفر:* ${p.inStock ? 'متوفر' : 'غير متوفر'}\\n` +\n      `🔗 *رابط المنافس:* ${p.url}`;\n\n    alerts.push({\n      json: {\n        productId: p.productId,\n        sku: p.sku,\n        platform: p.platform,\n        brand: p.brand,\n        title: p.title,\n        salePrice: p.salePrice,\n        previousPrice: prev,\n        discountPct: p.discountPct,\n        dropAmount: diffAmount,\n        currency: p.currency,\n        sizeVolume: p.sizeVolume,\n        pricePer100Ml: p.pricePer100Ml,\n        isFlashSale: p.isFlashSale,\n        inStock: p.inStock,\n        url: p.url,\n        alertType,\n        messageAr\n      }\n    });\n  }\n}\n\nreturn alerts;"
+      },
+      "id": "1e72392b-8a41-4541-9a72-7a13d78c0005",
+      "name": "Filter Competitor Price Drops & Flash Sales",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [740, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $input.all().length }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "1e72392b-8a41-4541-9a72-7a13d78c0006",
+      "name": "Check If Alerts Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [960, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID || '@your_channel_or_chat_id' }}",
+        "text": "={{ $json.messageAr }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "disable_web_page_preview": false
+        }
+      },
+      "id": "1e72392b-8a41-4541-9a72-7a13d78c0007",
+      "name": "Send Telegram Merchant Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.salla.dev/admin/v2/products?keyword={{ encodeURIComponent($json.sku || $json.brand || '') }}",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SALLA_ACCESS_TOKEN || 'YOUR_SALLA_ACCESS_TOKEN' }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1e72392b-8a41-4541-9a72-7a13d78c0008",
+      "name": "Search Matching Product in Salla Store",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 420]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.data?.length || 0 }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "1e72392b-8a41-4541-9a72-7a13d78c0009",
+      "name": "Salla Product Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1440, 420]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.salla.dev/admin/v2/products/{{ $json.data[0].id }}",
+        "method": "PUT",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SALLA_ACCESS_TOKEN || 'YOUR_SALLA_ACCESS_TOKEN' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "sale_price",
+              "value": "={{ Math.max(10, Math.floor($('Filter Competitor Price Drops & Flash Sales').item.json.salePrice - 1)) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1e72392b-8a41-4541-9a72-7a13d78c0010",
+      "name": "Auto-Reprice on Salla (Optional 1 SAR Undercut)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1680, 380]
+    }
+  ],
+  "connections": {
+    "Apify Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Scraped Perfume Dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily 9:00 AM Cron (Riyadh Time)": {
+      "main": [
+        [
+          {
+            "node": "Trigger Apify GCC Scraper Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Apify GCC Scraper Run": {
+      "main": [
+        [
+          {
+            "node": "Fetch Scraped Perfume Dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Scraped Perfume Dataset": {
+      "main": [
+        [
+          {
+            "node": "Filter Competitor Price Drops & Flash Sales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Competitor Price Drops & Flash Sales": {
+      "main": [
+        [
+          {
+            "node": "Check If Alerts Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Alerts Found": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Merchant Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Search Matching Product in Salla Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Matching Product in Salla Store": {
+      "main": [
+        [
+          {
+            "node": "Salla Product Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salla Product Found?": {
+      "main": [
+        [
+          {
+            "node": "Auto-Reprice on Salla (Optional 1 SAR Undercut)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
